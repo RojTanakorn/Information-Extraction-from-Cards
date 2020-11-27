@@ -1,11 +1,17 @@
 # Import libraries
 import cv2  # provides image processing tools
 import numpy as np  # deal with image array
+import pytesseract # provides OCR
 
 ''' Constants '''
 # location of information in the card (from 688x432)
-cardIdNumberArea = {'start': (298, 44), 'end': (542, 75)}
-cardNameArea = {'start': (193, 78), 'end': (670, 128)}
+citizenCardArea = {
+    'id': {'start': (606, 92), 'end': (1085, 154)},
+    'name': {'start': (389, 156), 'end': (1350, 256)},
+    'dateOfBirth': {'start': (603, 378), 'end': (900, 442)},
+    'address': {'start': (137, 553), 'end': (1020, 686)}
+}
+
 
 
 def preprocess1(originalImage, imageWidth, imageHeight, kSize):
@@ -145,3 +151,61 @@ def reorderPoints(cornerPoints):
     reOrderCornerPoints[3] = arrRight[1]
 
     return reOrderCornerPoints.reshape((4, 1, 2))
+
+
+def getInformationFromCard(binaryCardImage):
+    pytesseract.pytesseract.tesseract_cmd = r'D:\Tesseract-OCR\tesseract.exe'
+    idArea = citizenCardArea['id']
+    idCropImage = binaryCardImage[
+        idArea['start'][1]:idArea['end'][1],
+        idArea['start'][0]:idArea['end'][0]
+    ]
+
+    # custom_config = r'-l tha+eng --oem 3 --psm 6'
+    idText = pytesseract.image_to_string(
+        image=idCropImage,
+        config=r'-c tessedit_char_whitelist=0123456789 --oem 3 --psm 6'
+    )[:-2]
+
+    # ------------------------------------------------------------------- #
+
+    nameArea = citizenCardArea['name']
+    nameCropImage = binaryCardImage[
+        nameArea['start'][1]:nameArea['end'][1],
+        nameArea['start'][0]:nameArea['end'][0]
+    ]
+    nameCropImage = cv2.dilate(nameCropImage, np.ones((3, 3)), iterations=1)
+    nameText = pytesseract.image_to_string(
+        image=nameCropImage,
+        lang=r'tha',
+        config=r'--oem 3 --psm 7'
+    )[:-2]
+
+    # ------------------------------------------------------------------- #
+
+    dateOfBirthArea = citizenCardArea['dateOfBirth']
+    dateOfBirthCropImage = binaryCardImage[
+        dateOfBirthArea['start'][1]:dateOfBirthArea['end'][1],
+        dateOfBirthArea['start'][0]:dateOfBirthArea['end'][0]
+    ]
+    dateOfBirthCropImage = cv2.dilate(dateOfBirthCropImage, np.ones((3, 3)), iterations=1)
+    dateOfBirthText = pytesseract.image_to_string(
+        image=dateOfBirthCropImage,
+        lang=r'tha',
+        config=r'--oem 3 --psm 7'
+    )[:-2]
+
+    # ------------------------------------------------------------------- #
+
+    addressArea = citizenCardArea['address']
+    addressCropImage = binaryCardImage[
+        addressArea['start'][1]:addressArea['end'][1],
+        addressArea['start'][0]:addressArea['end'][0]
+    ]
+    addressText = pytesseract.image_to_string(
+        image=addressCropImage,
+        lang=r'tha',
+        config=r'--oem 3 --psm 6'
+    )[:-2]
+
+    return [idText, nameText, dateOfBirthText, addressText]

@@ -21,7 +21,6 @@ import numpy as np  # deal with image array
 import matplotlib.pyplot as plt  # plot graph and show images
 from utils import *  # all functions and variables for computing
 
-
 ''' ========== Constants ========== '''
 resizeWidth = 800  # image width for resizing
 resizeHeight = 600  # image height for resizing
@@ -31,9 +30,7 @@ cardWidth = 1376  # card width (8.6 x 160)
 cardHeight = 864  # card height (5.4 x 160)
 
 # Read card image as RGB image
-originalImage = cv2.cvtColor(
-    cv2.imread('./card_images/card4.jpg'), cv2.COLOR_BGR2RGB
-)
+originalImage = cv2.cvtColor(cv2.imread('./card_images/card1.jpg'), cv2.COLOR_BGR2RGB)
 
 originalImageHeight, originalImageWidth, _ = originalImage.shape
 
@@ -90,41 +87,103 @@ newPoints = np.float32(
 # @@@@@ 3.3 apply warpPerspective
 matrix = cv2.getPerspectiveTransform(oldPoints, newPoints)
 baseCardImage = cv2.warpPerspective(
-    originalImage, matrix, (cardWidth, cardHeight))
+    originalImage, 
+    matrix, 
+    (cardWidth, cardHeight)
+)
+
+
+''' ========== 4. preprocess card image ========== '''
+grayCardImage = cv2.cvtColor(baseCardImage, cv2.COLOR_RGB2GRAY)
+grayCardImage = cv2.GaussianBlur(grayCardImage, (3, 3), 0)
+binaryCardImage = cv2.adaptiveThreshold(
+    grayCardImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 10
+)
+
+binaryCardImage = cv2.morphologyEx(binaryCardImage, cv2.MORPH_OPEN, np.ones((kSize, kSize)))
+
+
+infosDict = getInformationFromCard(binaryCardImage)
+print(infosDict)
+
+
+# # บัตรประจําตัวประชาชน
+# if "Thai National ID Card" in text:
+#     print('Yes')
+# else:
+#     print('No')
+# text_file = open(r'text_output.txt','w', encoding='utf8') 
+# text_file.write(text)
+# text_file.close()
+
+# cv2.rectangle(
+#     binaryCardImage,
+#     citizenCardArea['id']['start'],
+#     citizenCardArea['id']['end'],
+#     (0, 255, 0),
+#     2
+# )
+
+# cv2.rectangle(
+#     binaryCardImage,
+#     citizenCardArea['name']['start'],
+#     citizenCardArea['name']['end'],
+#     (0, 255, 0),
+#     2
+# )
+
+# cv2.rectangle(
+#     binaryCardImage,
+#     citizenCardArea['dateOfBirth']['start'],
+#     citizenCardArea['dateOfBirth']['end'],
+#     (0, 255, 0),
+#     2
+# )
+
+# cv2.rectangle(
+#     binaryCardImage,
+#     citizenCardArea['address']['start'],
+#     citizenCardArea['address']['end'],
+#     (0, 255, 0),
+#     2
+# )
 
 
 ''' ********** Show all results ********** '''
-showedImages = [originalImage,
-                resizedImage,
-                grayImage,
-                blurredImage,
-                edgedCannyImage,
-                dilatedImage,
-                preProcessedImage,
-                biggestContourImage,
-                blankImage,
-                fourLinesImage,
-                cardAreaImage,
-                baseCardImage,
-                # grayCardImage,
-                # adaptiveThImage
-                ]
+showedImages = [
+    # originalImage,
+    # resizedImage,
+    # grayImage,
+    # blurredImage,
+    # edgedCannyImage,
+    # dilatedImage,
+    # preProcessedImage,
+    # biggestContourImage,
+    # blankImage,
+    # fourLinesImage,
+    # cardAreaImage,
+    # baseCardImage,
+    # grayCardImage,
+    binaryCardImage,
+]
 
-imageTitles = ['original image',
-               'resized image',
-               'grayscale image',
-               'blurred image',
-               'edge detection using Canny',
-               'dilated image',
-               'final preprocessed image (after erosion)',
-               'the biggest contour',
-               'contour in blackground',
-               'line on sides of card',
-               'corner of card',
-               'base card',
-               #    'grayscale card',
-               #    'binary card'
-               ]
+imageTitles = [
+    'original image',
+    'resized image',
+    'grayscale image',
+    'blurred image',
+    'edge detection using Canny',
+    'dilated image',
+    'final preprocessed image (after erosion)',
+    'the biggest contour',
+    'contour in blackground',
+    'line on sides of card',
+    'corner of card',
+    'base card',
+    'grayscale card',
+    'binary card',
+    # 'preprocess card'
+]
 
 for i in range(len(showedImages)):
     plt.figure(imageTitles[i])
