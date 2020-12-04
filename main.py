@@ -20,14 +20,8 @@ import cv2  # provides image processing tools
 import numpy as np  # deal with image array
 import matplotlib.pyplot as plt  # plot graph and show images
 from utils import *  # all functions and variables for computing
+from constants import *
 
-''' ========== Constants ========== '''
-resizeWidth = 800  # image width for resizing
-resizeHeight = 600  # image height for resizing
-kSize = 3  # size of kernel for dilation and erosion
-
-cardWidth = 1376  # card width (8.6 x 160)
-cardHeight = 864  # card height (5.4 x 160)
 
 # Read card image as RGB image
 originalImage = cv2.cvtColor(cv2.imread('./card_images/card1.jpg'), cv2.COLOR_BGR2RGB)
@@ -100,12 +94,18 @@ binaryCardImage = cv2.adaptiveThreshold(
     grayCardImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 10
 )
 
-binaryCardImage = cv2.morphologyEx(binaryCardImage, cv2.MORPH_OPEN, np.ones((kSize, kSize)))
+binaryCardImage2 = cv2.morphologyEx(binaryCardImage, cv2.MORPH_OPEN, np.ones((kSize, kSize)))
+binaryCardImage3 = cv2.morphologyEx(binaryCardImage2, cv2.MORPH_CLOSE, np.ones((kSize, kSize)))
 
 
-infosDict = getInformationFromCard(binaryCardImage)
+infosDict = getInformationFromCard(binaryCardImage3)
 print(infosDict)
 
+listToStr = '\n\n\n'.join(map(str, infosDict))
+
+text_file = open(r'text_output.txt','w', encoding='utf8') 
+text_file.write(listToStr)
+text_file.close()
 
 # # บัตรประจําตัวประชาชน
 # if "Thai National ID Card" in text:
@@ -165,6 +165,8 @@ showedImages = [
     # baseCardImage,
     # grayCardImage,
     binaryCardImage,
+    binaryCardImage2,
+    binaryCardImage3
 ]
 
 imageTitles = [

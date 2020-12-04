@@ -2,16 +2,7 @@
 import cv2  # provides image processing tools
 import numpy as np  # deal with image array
 import pytesseract # provides OCR
-
-''' Constants '''
-# location of information in the card (from 688x432)
-citizenCardArea = {
-    'id': {'start': (606, 92), 'end': (1085, 154)},
-    'name': {'start': (389, 156), 'end': (1350, 256)},
-    'dateOfBirth': {'start': (603, 378), 'end': (900, 442)},
-    'address': {'start': (137, 553), 'end': (1020, 686)}
-}
-
+from constants import citizenCardArea
 
 
 def preprocess1(originalImage, imageWidth, imageHeight, kSize):
@@ -64,7 +55,7 @@ def findLineFromContour(blankImage):
         lines = cv2.HoughLines(
             blankImage, 1, np.pi / 180, lineThreshold, None, 0, 0
         )
-        lineThreshold = lineThreshold+5 if len(lines) > 4 else lineThreshold-5
+        lineThreshold = lineThreshold+1 if len(lines) > 4 else lineThreshold-1
 
     return lines
 
@@ -207,5 +198,9 @@ def getInformationFromCard(binaryCardImage):
         lang=r'tha',
         config=r'--oem 3 --psm 6'
     )[:-2]
+
+    for key in citizenCardArea:
+        keyType = citizenCardArea[key]
+        cv2.rectangle(binaryCardImage, keyType['start'], keyType['end'], (0,0,0), 2)
 
     return [idText, nameText, dateOfBirthText, addressText]
