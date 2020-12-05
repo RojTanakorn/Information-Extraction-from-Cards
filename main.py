@@ -24,9 +24,9 @@ from constants import *
 
 
 # Read card image as RGB image
-originalImage = cv2.cvtColor(cv2.imread('./card_images/card1.jpg'), cv2.COLOR_BGR2RGB)
+originalImage = cv2.cvtColor(cv2.imread('./card_images/citizen_card1.jpg'), cv2.COLOR_BGR2RGB)
 
-originalImageHeight, originalImageWidth, _ = originalImage.shape
+originalImageHeight, originalImageWidth = originalImage.shape[:-1]
 
 ''' ========== 1. Preprocess image ========== '''
 # preprocess for getting edge from edge detection
@@ -87,9 +87,49 @@ baseCardImage = cv2.warpPerspective(
 )
 
 
-''' ========== 4. preprocess card image ========== '''
+''' ========== 4. classify type of the card ========== '''
+# @@@@@ 4.1 preprocess card image by converting to grayscale and apply filter
 grayCardImage = cv2.cvtColor(baseCardImage, cv2.COLOR_RGB2GRAY)
 grayCardImage = cv2.GaussianBlur(grayCardImage, (3, 3), 0)
+
+# @@@@@ 4.2 read logo images for classifying and store in list
+citizen_logo = cv2.imread('./card_logos/citizen_logo.jpg', cv2.IMREAD_GRAYSCALE)
+driving_logo = cv2.imread('./card_logos/driving_logo.jpg', cv2.IMREAD_GRAYSCALE)
+
+logo_list = [citizen_logo, driving_logo]
+maxVals = []
+
+for logo in logo_list:
+    template = cv2.GaussianBlur(logo, (5, 5), 0)
+    template = cv2.Canny(template, 75, 150)
+
+    templateHeight, templateWidth = template.shape
+    found = None
+
+    for scale in np.linspace(0.2, 1.0, 20):
+        card = cv2.resize(grayCardImage, (int(cardWidth * scale), int(cardHeight * scale)))
+        r = grayCardImage.shape[1] / float(card.shape[1])
+
+        if card.shape[0] < templateHeight or card.shape[1] < templateWidth:
+            break
+
+        canny = cv2.Canny(card, 25, 150)
+        result = cv2.matchTemplate(canny, template, cv2.TM_CCOEFF)
+        _, maxVal, _, maxLoc = cv2.minMaxLoc(result)
+
+        if found is None or maxVal > found[0]:
+            found = (maxVal, maxLoc, r)
+
+    (maxVal, maxLoc, r) = found
+    maxVals.append(maxVal)
+
+    (startX, startY) = (int(maxLoc[0] * r), int(maxLoc[1] * r))
+    (endX, endY) = (int((maxLoc[0] + templateWidth) * r), int((maxLoc[1] + templateHeight) * r))
+
+    cv2.rectangle(baseCardImage, (startX, startY), (endX, endY), (255, 0, 0), 2)
+
+
+''' ========== 6. extract information from card using OCR ========== '''
 binaryCardImage = cv2.adaptiveThreshold(
     grayCardImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 10
 )
@@ -99,54 +139,14 @@ binaryCardImage3 = cv2.morphologyEx(binaryCardImage2, cv2.MORPH_CLOSE, np.ones((
 
 
 infosDict = getInformationFromCard(binaryCardImage3)
-print(infosDict)
+# print(infosDict)
 
-listToStr = '\n\n\n'.join(map(str, infosDict))
+# listToStr = '\n\n\n'.join(map(str, infosDict))
 
-text_file = open(r'text_output.txt','w', encoding='utf8') 
-text_file.write(listToStr)
-text_file.close()
-
-# # บัตรประจําตัวประชาชน
-# if "Thai National ID Card" in text:
-#     print('Yes')
-# else:
-#     print('No')
 # text_file = open(r'text_output.txt','w', encoding='utf8') 
-# text_file.write(text)
+# text_file.write(listToStr)
 # text_file.close()
 
-# cv2.rectangle(
-#     binaryCardImage,
-#     citizenCardArea['id']['start'],
-#     citizenCardArea['id']['end'],
-#     (0, 255, 0),
-#     2
-# )
-
-# cv2.rectangle(
-#     binaryCardImage,
-#     citizenCardArea['name']['start'],
-#     citizenCardArea['name']['end'],
-#     (0, 255, 0),
-#     2
-# )
-
-# cv2.rectangle(
-#     binaryCardImage,
-#     citizenCardArea['dateOfBirth']['start'],
-#     citizenCardArea['dateOfBirth']['end'],
-#     (0, 255, 0),
-#     2
-# )
-
-# cv2.rectangle(
-#     binaryCardImage,
-#     citizenCardArea['address']['start'],
-#     citizenCardArea['address']['end'],
-#     (0, 255, 0),
-#     2
-# )
 
 
 ''' ********** Show all results ********** '''
@@ -162,11 +162,13 @@ showedImages = [
     # blankImage,
     # fourLinesImage,
     # cardAreaImage,
-    # baseCardImage,
+    baseCardImage,
     # grayCardImage,
-    binaryCardImage,
-    binaryCardImage2,
-    binaryCardImage3
+    # binaryCardImage,
+    # binaryCardImage2,
+    # binaryCardImage3,
+    # canny,
+    # template
 ]
 
 imageTitles = [
