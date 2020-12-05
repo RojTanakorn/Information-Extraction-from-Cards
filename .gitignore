@@ -140,4 +140,3 @@ cython_debug/
 # files and folder in project
 /card_images
 text_output.txt
-test_camera.py
