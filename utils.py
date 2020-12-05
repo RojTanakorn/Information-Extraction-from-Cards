@@ -4,6 +4,8 @@ import numpy as np  # deal with image array
 import pytesseract # provides OCR
 from constants import citizenCardArea
 
+from collections import Counter 
+
 
 def preprocess1(originalImage, imageWidth, imageHeight, kSize):
     # Resize image for processing
@@ -48,14 +50,42 @@ def findBiggestContour(preProcessedImage):
 def findLineFromContour(blankImage):
     lines = np.array([])
     lineThreshold = 250  # threshold of line (minimum length)
+    noneCount = 0
+    previousThresholds = []
 
     # apply Hough Transform algorithm for getting lines
     # use while loop for adjusting threshold that we can get 4 lines
-    while len(lines) != 4:
+    while True:
         lines = cv2.HoughLines(
             blankImage, 1, np.pi / 180, lineThreshold, None, 0, 0
         )
-        lineThreshold = lineThreshold+1 if len(lines) > 4 else lineThreshold-1
+
+        # @@@ Check that HoughLines cannot find the line (get None)
+        # if cannot find the line more than 3 times, return None
+        if lines is None:
+            if noneCount > 3:
+                break
+            noneCount = noneCount + 1
+        # if can find the line, check num line that is equal to 4 ?
+        else:
+            if len(lines) == 4:
+                break
+            elif len(lines) > 4:
+                lineThreshold = lineThreshold+1
+            else:
+                lineThreshold = lineThreshold-1
+            
+            # prevent thereshold is stuck (ex. 199 - 200 - 199 - 200 - ... - toggle)
+            # if it's stuck more than 4 times, return None for capturing again
+            if len(previousThresholds) == 8:
+                items = Counter(previousThresholds).keys()
+                if len(items) == 2:
+                    lines = None
+                    break
+                previousThresholds = previousThresholds[1:]
+            previousThresholds.append(lineThreshold)
+            
+
 
     return lines
 
