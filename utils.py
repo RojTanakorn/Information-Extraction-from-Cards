@@ -1,13 +1,23 @@
 # Import libraries
 import cv2  # provides image processing tools
 import numpy as np  # deal with image array
+import matplotlib.pyplot as plt  # plot graph and show images
 import pytesseract # provides OCR
-from constants import citizenCardArea
+from collections import Counter
 
-from collections import Counter 
+from constants import citizenCardArea, drivingCardArea, cardWidth, cardHeight, CARDTYPE
 
 
-def preprocess1(originalImage, imageWidth, imageHeight, kSize):
+def showImages(images, titles):
+    for i in range(len(images)):
+        plt.figure(titles[i])
+        if images[i].ndim == 3:
+            plt.imshow(images[i])
+        else:
+            plt.imshow(images[i], cmap='gray')
+
+
+def preprocess(originalImage, imageWidth, imageHeight, kSize):
     # Resize image for processing
     resizedImage = cv2.resize(originalImage, (imageWidth, imageHeight))
 
@@ -85,8 +95,6 @@ def findLineFromContour(blankImage):
                 previousThresholds = previousThresholds[1:]
             previousThresholds.append(lineThreshold)
             
-
-
     return lines
 
 
@@ -174,9 +182,83 @@ def reorderPoints(cornerPoints):
     return reOrderCornerPoints.reshape((4, 1, 2))
 
 
-def getInformationFromCard(binaryCardImage):
+def classifyCard(baseCardImage):
+    # preprocess card image by converting to grayscale and apply filter
+    grayCardImage = cv2.cvtColor(baseCardImage, cv2.COLOR_RGB2GRAY)
+    grayCardImage = cv2.GaussianBlur(grayCardImage, (3, 3), 0)
+
+    # read 2 logos as grayscale for classifier
+    citizen_logo = cv2.imread('./card_logos/citizen_logo.jpg', cv2.IMREAD_GRAYSCALE)
+    driving_logo = cv2.imread('./card_logos/driving_logo.jpg', cv2.IMREAD_GRAYSCALE)
+
+    logo_list = [citizen_logo, driving_logo]
+    showImages(logo_list, ['Citizen logo', 'Driving license logo'])
+
+    # list for storing max values from matching
+    maxVals = []
+
+    templateMatchingImage = np.copy(baseCardImage)
+
+    # using for-loop to compute matching values from each logo
+    for index in range(len(logo_list)):
+        # blur and apply Canny to logo
+        logo = cv2.GaussianBlur(logo_list[index], (5, 5), 0)
+        logo = cv2.Canny(logo, 75, 150)
+
+        showImages([logo], [f'logo {index}'])
+
+        # get height and width of logo
+        logoHeight, logoWidth = logo.shape
+
+        # tuple for store max value, location of max value, and rescale ratio
+        found = None
+
+        # apply multi-scale template matching
+        for scale in np.linspace(0.2, 1.0, 40):
+            card = cv2.resize(grayCardImage, (int(cardWidth * scale), int(cardHeight * scale)))
+            rescale = grayCardImage.shape[1] / float(card.shape[1])
+
+            if card.shape[0] < logoHeight or card.shape[1] < logoWidth:
+                break
+
+            cardWithCanny = cv2.Canny(card, 25, 150)
+            result = cv2.matchTemplate(cardWithCanny, logo, cv2.TM_CCOEFF)
+            _, maxVal, _, maxLoc = cv2.minMaxLoc(result)
+
+            if found is None or maxVal > found[0]:
+                found = (maxVal, maxLoc, rescale)
+
+        (maxVal, maxLoc, rescale) = found
+        maxVals.append(maxVal)
+
+
+        (startX, startY) = (int(maxLoc[0] * rescale), int(maxLoc[1] * rescale))
+        (endX, endY) = (int((maxLoc[0] + logoWidth) * rescale), int((maxLoc[1] + logoHeight) * rescale))
+
+        if index == 0:
+            color = (255, 0, 0)
+            h = 290
+            typ = 'citizen'
+        else:
+            color = (0, 255, 0)
+            h = 330
+            typ = 'driving'
+        cv2.rectangle(templateMatchingImage, (startX, startY), (endX, endY), color, 3)
+        cv2.putText(templateMatchingImage, f'{typ}: {maxVal}', (940, h), cv2.FONT_HERSHEY_PLAIN, 2.2, color, 3)
+
+    return CARDTYPE[np.argmax(maxVals)], grayCardImage, templateMatchingImage
+
+
+def getInformationFromCard(baseCardImage, binaryCardImage, cardType):
     pytesseract.pytesseract.tesseract_cmd = r'D:\Tesseract-OCR\tesseract.exe'
-    idArea = citizenCardArea['id']
+    headerList = ['เลขประจำตัวประชาชน', 'ชื่อ-สกุล', 'เกิดวันที่']
+
+    if cardType == 'CITIZEN':
+        typeArea = citizenCardArea
+    elif cardType == 'DRIVING':
+        typeArea = drivingCardArea
+
+    idArea = typeArea['id']
     idCropImage = binaryCardImage[
         idArea['start'][1]:idArea['end'][1],
         idArea['start'][0]:idArea['end'][0]
@@ -190,12 +272,11 @@ def getInformationFromCard(binaryCardImage):
 
     # ------------------------------------------------------------------- #
 
-    nameArea = citizenCardArea['name']
+    nameArea = typeArea['name']
     nameCropImage = binaryCardImage[
         nameArea['start'][1]:nameArea['end'][1],
         nameArea['start'][0]:nameArea['end'][0]
     ]
-    nameCropImage = cv2.dilate(nameCropImage, np.ones((3, 3)), iterations=1)
     nameText = pytesseract.image_to_string(
         image=nameCropImage,
         lang=r'tha',
@@ -204,7 +285,7 @@ def getInformationFromCard(binaryCardImage):
 
     # ------------------------------------------------------------------- #
 
-    dateOfBirthArea = citizenCardArea['dateOfBirth']
+    dateOfBirthArea = typeArea['dateOfBirth']
     dateOfBirthCropImage = binaryCardImage[
         dateOfBirthArea['start'][1]:dateOfBirthArea['end'][1],
         dateOfBirthArea['start'][0]:dateOfBirthArea['end'][0]
@@ -216,21 +297,53 @@ def getInformationFromCard(binaryCardImage):
         config=r'--oem 3 --psm 7'
     )[:-2]
 
+
+    # ================= #
+    infoList = [str(idText), nameText, dateOfBirthText]
+
+    # ------------------------------------------------------------------- #
+    # ----------------------------  ADDITION ---------------------------- #
     # ------------------------------------------------------------------- #
 
-    addressArea = citizenCardArea['address']
-    addressCropImage = binaryCardImage[
-        addressArea['start'][1]:addressArea['end'][1],
-        addressArea['start'][0]:addressArea['end'][0]
-    ]
-    addressText = pytesseract.image_to_string(
-        image=addressCropImage,
-        lang=r'tha',
-        config=r'--oem 3 --psm 6'
-    )[:-2]
+    if cardType == 'CITIZEN':
+        # ======= Address ======= #
+        addressArea = typeArea['address']
+        addressCropImage = binaryCardImage[
+            addressArea['start'][1]:addressArea['end'][1],
+            addressArea['start'][0]:addressArea['end'][0]
+        ]
+        addressText = pytesseract.image_to_string(
+            image=addressCropImage,
+            lang=r'tha',
+            config=r'--oem 3 --psm 6'
+        )[:-2]
 
-    for key in citizenCardArea:
-        keyType = citizenCardArea[key]
-        cv2.rectangle(binaryCardImage, keyType['start'], keyType['end'], (0,0,0), 2)
+        addressText = addressText.replace('ที่อยู่ ', '')
+        addressText = addressText.replace('\n', ' ')
 
-    return [idText, nameText, dateOfBirthText, addressText]
+        infoList.append(addressText)
+        headerList.append('ที่อยู่')
+
+
+    elif cardType == 'DRIVING':
+        # ======= Name in English ======= #
+        nameEngArea = typeArea['nameEng']
+        nameEngCropImage = binaryCardImage[
+            nameEngArea['start'][1]:nameEngArea['end'][1],
+            nameEngArea['start'][0]:nameEngArea['end'][0]
+        ]
+        nameEngText = pytesseract.image_to_string(
+            image=nameEngCropImage,
+            lang=r'eng',
+            config=r'--oem 3 --psm 6'
+        )[:-2]
+
+        infoList.append(nameEngText)
+        headerList.append('ชื่อ-สกุล ภาษาอังกฤษ')
+
+    infoAreaImage = np.copy(baseCardImage)
+    for key in typeArea:
+        keyType = typeArea[key]
+        cv2.rectangle(infoAreaImage, keyType['start'], keyType['end'], (255,0,0), 3)
+
+    return infoList, headerList, infoAreaImage
