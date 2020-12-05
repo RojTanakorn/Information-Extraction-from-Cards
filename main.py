@@ -1,18 +1,19 @@
 '''
-Project: 'Information Extraction from Citizen ID Card'
+Project: 'Information Extraction from Official Cards'
 
     Application specs:
-        Major specs (must have)
-            1. Get information from card as text using OCR.
-            2. Get copied of card for certification.
-
-        Minor spec(s) (may be in the future)
-            1. Be capable in other cards. (ex. driving license card, passport)
+        1. Get information from the card as text using OCR (citizen card and driving license card).
+        2. Get copied of the card for certification.
 
     Environmental requirements:
-        1. Background should be black or dark.
+        1. Background should be smooth and dark/contrast.
         2. Card's area should be the main object. (larger than 40% of the image)
 
+    Libraries:
+        1. OpenCV - 4.4.0
+        2. Numpy - 1.19.3
+        3. Matplotlib - 3.3.3
+        4. Pytesseract - 0.3.6
 '''
 
 # Import libraries
@@ -30,7 +31,7 @@ showImages([originalImage], ['Original image as default size'])
 
 originalImageHeight, originalImageWidth = originalImage.shape[:-1]
 
-''' ========== 1. Preprocess image ========== '''
+''' ========== 1.1 Preprocess image ========== '''
 # preprocess for getting edge from edge detection
 resizedImage, grayImage, blurredImage, edgedCannyImage, dilatedImage, preProcessedImage = preprocess(
     originalImage, resizeWidth, resizeHeight, kSize)
@@ -42,8 +43,8 @@ showImages(
     'Edge detection using Canny','Dilated image', 'Eroded image (final preprocess)'])
 
 
-''' ========== 2. Specify location and area of card ========== '''
-# @@@@@ 2.1 find contour of the card (assume that it is the biggest area in the image)
+''' ========== 1.2 Specify location and area of card ========== '''
+# @@@@@ 1. find contour of the card (assume that it is the biggest area in the image)
 biggestContour = findBiggestContour(preProcessedImage)
 
 # show the biggest contour in the image
@@ -52,7 +53,7 @@ cv2.drawContours(biggestContourImage, biggestContour, -1, (0, 255, 0), 3)
 showImages([biggestContourImage], ['The biggest contour in the image'])
 
 
-# @@@@@ 2.2. find 4 corners of the card as rectangle (from straight line of each side)
+# @@@@@ 2. find 4 corners of the card as rectangle (from straight line of each side)
 # @@@@@ Note: card's shape is round rectangle, but corners should be rectangle
 
 # @@ first, draw card's contour in blank background (black)
@@ -80,11 +81,11 @@ if lines is not None:
     showImages([cardCornerImage], ['4 corners of the card'])
 
 
-    ''' ========== 3. Crop image to get only card using warpPerspective ========== '''
-    # @@@@@ 3.1. reorder corner points for applying warp prespective
+    ''' ========== 1.3 Crop image to get only card using warpPerspective ========== '''
+    # @@@@@ 1. reorder corner points for applying warp prespective
     reOrderCornerPoints = reorderPoints(cornerPoints)
 
-    # @@@@@ 3.2 define width and height of card image that prepare for warp
+    # @@@@@ 2. define width and height of card image that prepare for warp
     cornerScale = originalImageWidth / resizeWidth
     oldPoints = np.float32(reOrderCornerPoints) * cornerScale
 
@@ -92,7 +93,7 @@ if lines is not None:
         [[0, 0], [cardWidth, 0], [0, cardHeight], [cardWidth, cardHeight]]
     )
 
-    # @@@@@ 3.3 apply warpPerspective
+    # @@@@@ 3. apply warpPerspective
     matrix = cv2.getPerspectiveTransform(oldPoints, newPoints)
     baseCardImage = cv2.warpPerspective(
         originalImage, 
@@ -103,7 +104,7 @@ if lines is not None:
     showImages([baseCardImage], ['Only card'])
 
 
-    ''' ========== 4. classify type of the card ========== '''
+    ''' ========== 1.4 classify type of the card ========== '''
     # classify card in the function
     cardType, grayCardImage, templateMatchingImage = classifyCard(baseCardImage)
 
@@ -111,7 +112,7 @@ if lines is not None:
     showImages([templateMatchingImage], ['Detected logo location'])
 
 
-    ''' ========== 5. extract information from card using OCR ========== '''
+    ''' ========== 1.5 extract information from card using OCR ========== '''
     binaryCardImage = cv2.adaptiveThreshold(
         grayCardImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 10
     )
@@ -143,5 +144,18 @@ if lines is not None:
     # show all results
     plt.show()
 
+
+    ''' ========== 2. A4: Copied of card ========== '''
+    a4Height = 3508
+    a4Width = 2480
+    a4 = (np.ones((a4Height, a4Width), dtype=np.uint8)) * 255
+
+    centerA4 = (int(a4Height/2), int(a4Width/2))
+    startA4 = (centerA4[0] - int(cardHeight/2), centerA4[1] - int(cardWidth/2))
+
+    a4[startA4[0]:startA4[0]+cardHeight, startA4[1]:startA4[1]+cardWidth] = grayCardImage
+
+    showImages([a4], ['A4 of copied card'])
+    plt.show()
 else:
     print('Cannot detect lines.')
