@@ -1,5 +1,4 @@
 ''' ========== Constants ========== '''
-MODE = 1
 resizeWidth = 800  # image width for resizing
 resizeHeight = 600  # image height for resizing
 kSize = 3  # size of kernel for dilation and erosion

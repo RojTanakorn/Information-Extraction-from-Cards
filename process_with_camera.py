@@ -6,8 +6,10 @@ from constants import *
 
 
 camera = cv2.VideoCapture(0, cv2.CAP_DSHOW)
-address = 'https://192.168.1.36:3000/video'
+address = 'https://192.168.1.7:3000/video'
 camera.open(address)
+
+isCapture = False
 
 while True:
     ret, originalImage = camera.read()
@@ -51,8 +53,18 @@ while True:
         cv2.imshow('camera', originalImage)
 
     # cv2.imshow('camera', originalImage)
-    if(cv2.waitKey(1) & 0xFF==ord('q')):
-            break
+    # if(cv2.waitKey(1) & 0xFF==ord('q')):
+    #     break
+    if(cv2.waitKey(1) & 0xFF==ord('c')):
+        isCapture = True
+        captureImage = originalImage
+        captureImageWithLines = fourLinesImage
+        break
 
-camera.release()
-cv2.destroyAllWindows()
+if isCapture:
+    camera.release()
+    cv2.destroyAllWindows()
+    concatImage = cv2.resize(cv2.hconcat((captureImage, captureImageWithLines)), (1200, 450))
+    cv2.imshow('capture', concatImage)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

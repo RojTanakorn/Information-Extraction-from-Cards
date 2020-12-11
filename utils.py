@@ -7,6 +7,8 @@ from collections import Counter
 
 from constants import citizenCardArea, drivingCardArea, cardWidth, cardHeight, CARDTYPE
 
+plt.rcParams.update({'figure.max_open_warning': 0})
+
 
 def showImages(images, titles):
     for i in range(len(images)):

@@ -113,30 +113,38 @@ if lines is not None:
 
 
     ''' ========== 1.5 extract information from card using OCR ========== '''
+    # apply Adaptive thresholding
     binaryCardImage = cv2.adaptiveThreshold(
         grayCardImage, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 35, 10
     )
 
+    # apply opening
     openBinaryCardImage = cv2.morphologyEx(binaryCardImage, cv2.MORPH_OPEN, np.ones((kSize, kSize)))
+
+    # apply closing
     closeBinaryCardImage = cv2.morphologyEx(openBinaryCardImage, cv2.MORPH_CLOSE, np.ones((kSize, kSize)))
 
+    # show results
     showImages(
         [binaryCardImage, openBinaryCardImage, closeBinaryCardImage],
         ['Binary card', 'Opened binary card from binary', 'Closed binary card from opened']
     )
 
-
+    # get information from card using Pytesseract (OCR)
     extractedInfos, headers, infoAreaImage = getInformationFromCard(
         baseCardImage, closeBinaryCardImage, cardType
     )
 
+    # show area of information
     showImages([infoAreaImage], ['Area of information'])
 
+    # modify string information for representation
     for index in range(len(extractedInfos)):
         extractedInfos[index] = f'{headers[index]}: {extractedInfos[index]}'
 
     listToStr = '\n\n\n'.join(map(str, extractedInfos))
 
+    # write all information to text_output.txt file for representation
     text_file = open(r'text_output.txt','w', encoding='utf8') 
     text_file.write(listToStr)
     text_file.close()
@@ -146,15 +154,23 @@ if lines is not None:
 
 
     ''' ========== 2. A4: Copied of card ========== '''
+    # width and height of A4 on 300 dpi
     a4Height = 3508
     a4Width = 2480
+
+    # create white A4 plane
     a4 = (np.ones((a4Height, a4Width), dtype=np.uint8)) * 255
 
+    # calculate center point of A4
     centerA4 = (int(a4Height/2), int(a4Width/2))
+
+    # calculate start point of card on A4
     startA4 = (centerA4[0] - int(cardHeight/2), centerA4[1] - int(cardWidth/2))
 
+    # put grayscale card image to A4 at the center
     a4[startA4[0]:startA4[0]+cardHeight, startA4[1]:startA4[1]+cardWidth] = grayCardImage
 
+    # show A4 result
     showImages([a4], ['A4 of copied card'])
     plt.show()
 else:
